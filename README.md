@@ -149,3 +149,44 @@ docker run \
 ## Round 2: Hub outside the swarm
 
 This one seems trickier, since we need to make sure the Hub can see the containers.
+
+
+Once I had a decent network, I could run with the Hub outside the swarm.
+This is a little simpler, since I don't need to pass the 
+
+I setup this cluster with the same `build-swarm` script,
+just using the `virtualbox` driver instead of `rackspace`.
+
+Don't forget to `docker pull jupyterhub/singleuser`!
+
+The files for this one are in [`hub-outside`](hub-outside).
+
+### Install JupyterHub
+
+Star t with the usual JupyterHub installation:
+
+    pip3 install -r requirements.txt
+    npm install -g configurable-http-proxy
+
+As before, most of the configuration is networking-related,
+but it's a lot simpler this time.
+
+We only need to tell the Hub to listen where containers can see it, and the same for containers.
+
+First, the containers:
+
+```python
+c.DockerSpawner.container_ip = '0.0.0.0'
+```
+
+next, the Hub:
+
+```python
+import netifaces
+interface = 'vboxnet0'
+c.JupyterHub.hub_ip = netifaces.ifaddresses(interface)[netifaces.AF_INET][0]['addr']
+````
+
+(this is using the virtualbox network device.
+In reality, you might use `eth0` or another device on the right LAN.
+Or hardcode the correct IP address.)

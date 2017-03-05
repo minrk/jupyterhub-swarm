@@ -1,0 +1,3 @@
+jupyterhub
+dockerspawner
+netifaces
