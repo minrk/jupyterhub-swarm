@@ -1,0 +1,43 @@
+#!/bin/bash
+set -ex
+
+# based on this: https://docs.docker.com/engine/userguide/networking/get-started-overlay/#create-a-swarm-cluster
+DRIVER=${DRIVER:-virtualbox}
+
+# docker-machine create -d $DRIVER kvstore
+eval $(docker-machine env kvstore)
+docker run --name consul --restart=always -p 8400:8400 -p 8500:8500 \
+  -p 53:53/udp -d progrium/consul -server -bootstrap-expect 1 -ui-dir /ui
+
+export KVSTORE_IP=$(docker-machine ip kvstore)
+export CONSUL_URL="consul://$KVSTORE_IP:8500"
+export SWARM_ARGS="
+    --swarm \
+    --swarm-discovery=$CONSUL_URL \
+    --engine-opt=cluster-store=$CONSUL_URL \
+    --engine-opt=cluster-advertise=eth0:2376
+"
+
+docker-machine create \
+    -d $DRIVER \
+    --swarm-master \
+    $SWARM_ARGS \
+    rogue-leader
+
+docker-machine create \
+    -d $DRIVER \
+    $SWARM_ARGS \
+    rogue-one
+
+docker-machine create \
+    -d virtualbox \
+    $SWARM_ARGS \
+    rogue-two
+
+
+# load 
+echo 'connect to swarm:'
+echo 'eval $(docker-machine env --swarm rogue-leader)'
+eval $(docker-machine env --swarm rogue-leader)
+docker info
+docker pull jupyterhub/singleuser
