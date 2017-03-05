@@ -23,3 +23,6 @@ network:
 
 send-certs:
 	docker-machine scp -r $(DOCKER_CERT_PATH) rogue-leader:/docker_certs
+
+pull:
+	docker pull jupyterhub/singleuser

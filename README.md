@@ -2,13 +2,25 @@
 
 This is a record of my experiments with running JupyterHub with docker swarm, set up via `docker-machine`.
 Just about all of the configuration needed is networking-related.
+We need to ensure just two things:
+
+1. that the containers can connect to the Hub's API
+2. that the Hub and proxy can connect to the containers at the ip returned from DockerSpawner
+
+Ensuring these two things in the complicated networking land of Docker is not the easiest thing in the world, though.
+
+I set out to do two examples:
+
+1. The Hub inside the swarm with everything else
+2. The Hub outside the swarm
 
 ## Bootstrap swarm
 
 Following [the docs](https://docs.docker.com/engine/userguide/networking/get-started-overlay/#create-a-swarm-cluster), I created a swarm with `docker-machine`.
 I'm using macOS with `docker-machine` from [Docker for Mac](https://docs.docker.com/docker-for-mac/).
-I started with the virtualbox driver, but since I'm on hotel wifi, I switched to `rackspace`.
-The [`build-swarm`](build-swarm) script is how I created the swarm with three nodes.
+I started with the virtualbox driver, but I'm on hotel wifi, so I switched to `rackspace` because `docker pull jupyterhub/singleuser` would take ages.
+The [`build-swarm`](build-swarm) script is how I created the swarm with two or three nodes.
+I used the same swarm setup script for both cases.
 
 
 ### Check the swarm:
@@ -86,7 +98,7 @@ So I elected to run the Hub in the swarm as well, confined to the `rogue-leader`
 Since I'm using swarm and the Hub needs to talk to the swarm,
 I need to get the credentials from my laptop to the hub node.
 I used `docker-machine scp` and a volume to do this,
-but it could also be done by copying the files into the `hub` directory and putting them in the container with `ADD`:
+but it could also be done by copying the files into the `hub` directory and putting them in the container with `ADD` in the Dockerfile:
 
 ```bash
 docker-machine scp -r $(DOCKER_CERT_PATH) rogue-leader:/docker_certs
@@ -126,9 +138,10 @@ docker build -t jupyterhub hub-inside
 It takes quite a few arguments to run the hub how we want it. We want to:
 
 1. pin it to a particular node
-2. put it on the jupyterhub network
+2. put it on the jupyterhub network with hostname 'jupyterhub'
 3. mount the swarm credentials directory
 4. pass the swarm environment variables
+5. expose port 8000
 
 This amounts to:
 
@@ -148,14 +161,13 @@ docker run \
 
 ## Round 2: Hub outside the swarm
 
-This one seems trickier, since we need to make sure the Hub can see the containers.
-
-
 Once I had a decent network, I could run with the Hub outside the swarm.
-This is a little simpler, since I don't need to pass the 
+This is a lot simpler, since I don't need to pass the swarm credentials around,
+I just need to pick the right IP addresses for the Hub and containers.
 
 I setup this cluster with the same `build-swarm` script,
 just using the `virtualbox` driver instead of `rackspace`.
+I could have used `rackspace` as well, as long as the machine I'm running on can be reached directly by the swarm nodes.
 
 Don't forget to `docker pull jupyterhub/singleuser`!
 
@@ -163,7 +175,7 @@ The files for this one are in [`hub-outside`](hub-outside).
 
 ### Install JupyterHub
 
-Star t with the usual JupyterHub installation:
+Start with the usual JupyterHub installation:
 
     pip3 install -r requirements.txt
     npm install -g configurable-http-proxy
@@ -173,7 +185,7 @@ but it's a lot simpler this time.
 
 We only need to tell the Hub to listen where containers can see it, and the same for containers.
 
-First, the containers:
+First, the containers, expose port on all interfaces:
 
 ```python
 c.DockerSpawner.container_ip = '0.0.0.0'

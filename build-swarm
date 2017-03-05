@@ -40,4 +40,5 @@ echo 'connect to swarm:'
 echo 'eval $(docker-machine env --swarm rogue-leader)'
 eval $(docker-machine env --swarm rogue-leader)
 docker info
-docker pull jupyterhub/singleuser
+
+echo "Don't forget to docker pull jupyterhub/singleuser"
